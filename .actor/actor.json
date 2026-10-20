@@ -1,0 +1,10 @@
+{
+    "actorSpecification": 1,
+    "name": "social-metrics-scraper",
+    "title": "Social Media Metrics Scraper",
+    "description": "Scrapes metrics across YouTube, TikTok, Instagram, Twitter/X, Facebook, and LinkedIn.",
+    "version": "0.1",
+    "meta": {
+        "templateId": "python-start"
+    }
+}
