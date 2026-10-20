@@ -3,18 +3,25 @@ import re
 
 async def scrape_facebook(url: str, proxy_url: str = None) -> dict:
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
     }
 
     try:
-        # Pass proxy_url to AsyncClient so Facebook sees clean residential IPs
         async with httpx.AsyncClient(headers=headers, follow_redirects=True, proxy=proxy_url, timeout=15.0) as client:
-            response = await client.get(url)
-            html = response.text
+            # 1. Resolve redirect to get final destination URL
+            res = await client.get(url)
+            final_url = str(res.url)
+            
+            # If redirected to login wall, switch to mobile subdomain
+            if "login" in final_url or "m.facebook.com" not in final_url:
+                mobile_url = url.replace("www.facebook.com", "mbasic.facebook.com")
+                res = await client.get(mobile_url)
 
-        # Extract metadata
+            html = res.text
+
+        # Extract meta tags
         author = (
             re.search(r'<meta property="og:title" content="([^"]+)"', html) or
             re.search(r'"owner":\s*{\s*"name":\s*"([^"]+)"', html)

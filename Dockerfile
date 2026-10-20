@@ -1,10 +1,11 @@
-FROM python:3.11-slim
+# Use the official Apify Python Playwright image (pre-installs Chromium, Firefox, & dependencies)
+FROM apify/actor-python-playwright:3.11
 
-WORKDIR /usr/src/app
+# Copy project files into the container
+COPY . ./
 
-COPY requirements.txt ./
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-
+# Run the main script
 CMD ["python", "main.py"]
