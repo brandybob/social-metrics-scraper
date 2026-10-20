@@ -21,18 +21,16 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             html = await page.content()
             await browser.close()
 
-        # Extract Meta Title / Description content
+        # Extract Meta Title & Description
         meta_desc = re.search(r'<meta\s+property="og:description"\s+content="([^"]+)"', html)
         meta_title = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', html)
 
         desc_text = meta_desc.group(1) if meta_desc else ""
         title_text = meta_title.group(1) if meta_title else ""
 
-        # Parse primary metrics
+        # Extract Raw Metric Strings
         likes_match = re.search(r'([\d\.,KMB]+)\s+likes', desc_text, re.IGNORECASE)
         comments_match = re.search(r'([\d\.,KMB]+)\s+comments', desc_text, re.IGNORECASE)
-        
-        # Exact views extraction (for Reels / Videos)
         views_match = (
             re.search(r'([\d\.,KMB]+)\s+views', desc_text, re.IGNORECASE) or
             re.search(r'([\d\.,KMB]+)\s+plays', desc_text, re.IGNORECASE) or
@@ -40,7 +38,6 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             re.search(r'"play_count":\s*(\d+)', html)
         )
 
-        # Author handle extraction
         author_match = (
             re.search(r'\(@([^)]+)\)', title_text) or
             re.search(r'([^\(]+)\s+on\s+Instagram', title_text) or
@@ -60,17 +57,16 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
                 return int(float(val.replace('B', '')) * 1_000_000_000)
             return int(val)
 
-        likes_count = parse_number(likes_match.group(1)) if likes_match else None
-        comments_count = parse_number(comments_match.group(1)) if comments_match else None
+        likes_count = parse_number(likes_match.group(1)) if likes_match else 0
+        comments_count = parse_number(comments_match.group(1)) if comments_match else 0
         exact_views = parse_number(views_match.group(1)) if views_match else None
 
-        # Determine Final Views: Use exact views if available; otherwise calculate estimate
-        if exact_views is not None:
+        # Calculate final views or estimation
+        if exact_views is not None and exact_views > 0:
             final_views = exact_views
-        elif likes_count or comments_count:
-            # Fallback Estimation: (Likes + Comments) * 35 multiplier (~2.8% engagement rate)
-            total_engagement = (likes_count or 0) + (comments_count or 0)
-            final_views = int(total_engagement * 35)
+        elif likes_count > 0 or comments_count > 0:
+            # Benchmark Estimation multiplier (~2.8% engagement rate)
+            final_views = int((likes_count + comments_count) * 35)
         else:
             final_views = None
 
@@ -83,8 +79,8 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
         return {
             "url": url,
             "author": author_name,
-            "likes": likes_count,
-            "comments": comments_count,
+            "likes": likes_count if likes_count > 0 else None,
+            "comments": comments_count if comments_count > 0 else None,
             "shares": None,
             "views": final_views
         }
