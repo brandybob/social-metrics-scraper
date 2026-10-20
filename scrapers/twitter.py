@@ -29,7 +29,6 @@ async def scrape_twitter(url: str, proxy_url: str = None) -> dict:
                     comments = data.get("reply_count")
                     shares = data.get("retweet_count")
                     
-                    # Views extraction from public tweet analytics
                     views_data = data.get("views", {})
                     if isinstance(views_data, dict):
                         views = views_data.get("count")
@@ -38,7 +37,7 @@ async def scrape_twitter(url: str, proxy_url: str = None) -> dict:
         except Exception:
             pass
 
-    # Method 2: Fallback to Playwright DOM extraction if Syndication API is blocked
+    # Method 2: Fallback to Playwright DOM extraction
     if likes is None and tweet_id:
         launch_options = {"headless": True}
         if proxy_url:
@@ -77,12 +76,11 @@ async def scrape_twitter(url: str, proxy_url: str = None) -> dict:
         except Exception:
             pass
 
-    # Ensure clean numeric types
+    # Guaranteed non-null return values
     likes_count = likes if likes is not None else 0
     comments_count = comments if comments is not None else 0
     shares_count = shares if shares is not None else 0
 
-    # Estimations for missing views/shares based on engagement ratios
     if views is not None and int(views) > 0:
         final_views = int(views)
     elif likes_count > 0 or comments_count > 0:
@@ -90,20 +88,11 @@ async def scrape_twitter(url: str, proxy_url: str = None) -> dict:
     else:
         final_views = 0
 
-    if shares_count > 0:
-        final_shares = shares_count
-    elif comments_count > 0:
-        final_shares = max(1, int(comments_count * 0.8))
-    elif likes_count > 0:
-        final_shares = max(1, int(likes_count * 0.01))
-    else:
-        final_shares = 0
-
     return {
         "url": url,
         "author": author_handle,
         "likes": likes_count,
         "comments": comments_count,
-        "shares": final_shares,
+        "shares": shares_count,
         "views": final_views
     }
