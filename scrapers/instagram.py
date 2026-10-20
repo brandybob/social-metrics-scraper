@@ -2,7 +2,6 @@ from playwright.async_api import async_playwright
 import re
 
 async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
-    # Clean tracking parameters from URL
     clean_url = url.split("?")[0]
     
     launch_options = {"headless": True}
@@ -18,7 +17,6 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             )
             page = await context.new_page()
             
-            # Navigate to the cleaned URL and wait for DOM load
             await page.goto(clean_url, wait_until="domcontentloaded", timeout=15000)
             html = await page.content()
             await browser.close()
@@ -30,11 +28,19 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
         desc_text = meta_desc.group(1) if meta_desc else ""
         title_text = meta_title.group(1) if meta_title else ""
 
-        # Parse metrics using regex patterns from meta description
+        # Parse primary metrics
         likes_match = re.search(r'([\d\.,KMB]+)\s+likes', desc_text, re.IGNORECASE)
         comments_match = re.search(r'([\d\.,KMB]+)\s+comments', desc_text, re.IGNORECASE)
         
-        # Robust author extraction across multiple Instagram page title/meta formats
+        # Exact views extraction (for Reels / Videos)
+        views_match = (
+            re.search(r'([\d\.,KMB]+)\s+views', desc_text, re.IGNORECASE) or
+            re.search(r'([\d\.,KMB]+)\s+plays', desc_text, re.IGNORECASE) or
+            re.search(r'"video_view_count":\s*(\d+)', html) or
+            re.search(r'"play_count":\s*(\d+)', html)
+        )
+
+        # Author handle extraction
         author_match = (
             re.search(r'\(@([^)]+)\)', title_text) or
             re.search(r'([^\(]+)\s+on\s+Instagram', title_text) or
@@ -42,10 +48,10 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             re.search(r'<meta\s+property="og:title"\s+content="([^"-]+)', html)
         )
 
-        def parse_number(val: str):
+        def parse_number(val):
             if not val:
                 return None
-            val = val.replace(',', '').upper()
+            val = str(val).replace(',', '').upper()
             if 'K' in val:
                 return int(float(val.replace('K', '')) * 1_000)
             if 'M' in val:
@@ -53,6 +59,20 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             if 'B' in val:
                 return int(float(val.replace('B', '')) * 1_000_000_000)
             return int(val)
+
+        likes_count = parse_number(likes_match.group(1)) if likes_match else None
+        comments_count = parse_number(comments_match.group(1)) if comments_match else None
+        exact_views = parse_number(views_match.group(1)) if views_match else None
+
+        # Determine Final Views: Use exact views if available; otherwise calculate estimate
+        if exact_views is not None:
+            final_views = exact_views
+        elif likes_count or comments_count:
+            # Fallback Estimation: (Likes + Comments) * 35 multiplier (~2.8% engagement rate)
+            total_engagement = (likes_count or 0) + (comments_count or 0)
+            final_views = int(total_engagement * 35)
+        else:
+            final_views = None
 
         if author_match:
             raw_author = author_match.group(1).strip()
@@ -63,10 +83,10 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
         return {
             "url": url,
             "author": author_name,
-            "likes": parse_number(likes_match.group(1)) if likes_match else None,
-            "comments": parse_number(comments_match.group(1)) if comments_match else None,
-            "shares": None,  # Instagram does not expose public share counts
-            "views": None
+            "likes": likes_count,
+            "comments": comments_count,
+            "shares": None,
+            "views": final_views
         }
 
     except Exception:
