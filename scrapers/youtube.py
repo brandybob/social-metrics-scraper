@@ -1,19 +1,26 @@
-import httpx
+from playwright.async_api import async_playwright
 import re
 
 async def scrape_youtube(url: str, proxy_url: str = None) -> dict:
     # Clean tracking parameters like &si=...
     clean_url = url.split("&si=")[0].split("?si=")[0]
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
+    launch_options = {"headless": True}
+    if proxy_url:
+        launch_options["proxy"] = {"server": proxy_url}
 
     try:
-        async with httpx.AsyncClient(headers=headers, follow_redirects=True, proxy=proxy_url, timeout=15.0) as client:
-            res = await client.get(clean_url)
-            html = res.text
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(**launch_options)
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 800}
+            )
+            page = await context.new_page()
+            
+            await page.goto(clean_url, wait_until="domcontentloaded", timeout=15000)
+            html = await page.content()
+            await browser.close()
 
         # 1. Author / Channel Name
         author_match = (
@@ -38,12 +45,11 @@ async def scrape_youtube(url: str, proxy_url: str = None) -> dict:
         )
 
         # 4. Comments Count
-        comments_match = re.search(r'"commentCount":\s*"(\d+)"', html)
+        comments_match = re.search(r'"commentCount":\s*"(\d+)"', html) or re.search(r'([\d\.,KMB]+)\s+Comments', html, re.IGNORECASE)
 
         def parse_num(val):
             if not val:
                 return 0
-            # Extract numbers if text like "1.2K likes" is matched
             num_str = re.search(r'([\d\.,KMB]+)', str(val))
             if not num_str:
                 return 0
