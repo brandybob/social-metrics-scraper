@@ -36,7 +36,7 @@ async def main():
 
         # Initialize Apify Proxy Configuration
         proxy_configuration = await Actor.create_proxy_configuration()
-        proxy_url = await proxy_configuration.get_new_url() if proxy_configuration else None
+        proxy_url = await proxy_configuration.new_url() if proxy_configuration else None
 
         for url in urls:
             platform = detect_platform(url)
@@ -65,7 +65,6 @@ async def main():
                     "views": None
                 }
 
-            # Save dataset row to Apify Storage
             await Actor.push_data(data)
 
 if __name__ == "__main__":
