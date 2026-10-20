@@ -52,7 +52,8 @@ async def main():
             elif platform == "linkedin":
                 data = await scrape_linkedin(url)
             elif platform == "facebook":
-                data = await scrape_facebook(url)
+                # Pass proxy_url to the Facebook module so requests bypass blocks
+                data = await scrape_facebook(url, proxy_url=proxy_url)
             elif platform == "twitter":
                 data = await scrape_twitter(url)
             else:
