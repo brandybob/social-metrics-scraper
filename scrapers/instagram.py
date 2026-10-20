@@ -37,6 +37,7 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             re.search(r'"video_view_count":\s*(\d+)', html) or
             re.search(r'"play_count":\s*(\d+)', html)
         )
+        shares_match = re.search(r'"share_count":\s*(\d+)', html) or re.search(r'([\d\.,KMB]+)\s+shares', desc_text, re.IGNORECASE)
 
         author_match = (
             re.search(r'\(@([^)]+)\)', title_text) or
@@ -60,15 +61,27 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
         likes_count = parse_number(likes_match.group(1)) if likes_match else 0
         comments_count = parse_number(comments_match.group(1)) if comments_match else 0
         exact_views = parse_number(views_match.group(1)) if views_match else None
+        exact_shares = parse_number(shares_match.group(1)) if shares_match else None
 
-        # Calculate final views or estimation
+        # 1. Final Views (Exact or Benchmark Estimation)
         if exact_views is not None and exact_views > 0:
             final_views = exact_views
         elif likes_count > 0 or comments_count > 0:
-            # Benchmark Estimation multiplier (~2.8% engagement rate)
             final_views = int((likes_count + comments_count) * 35)
         else:
             final_views = None
+
+        # 2. Final Shares (Exact or Benchmark Estimation based on engagement)
+        if exact_shares is not None:
+            final_shares = exact_shares
+        elif comments_count > 0:
+            # Estimate shares as 50% of comments (minimum 1 if comments exist)
+            final_shares = max(1, int(comments_count * 0.5))
+        elif likes_count > 0:
+            # Fallback based on likes ratio (~0.5% of likes)
+            final_shares = max(1, int(likes_count * 0.005))
+        else:
+            final_shares = None
 
         if author_match:
             raw_author = author_match.group(1).strip()
@@ -81,7 +94,7 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             "author": author_name,
             "likes": likes_count if likes_count > 0 else None,
             "comments": comments_count if comments_count > 0 else None,
-            "shares": None,
+            "shares": final_shares,
             "views": final_views
         }
 
