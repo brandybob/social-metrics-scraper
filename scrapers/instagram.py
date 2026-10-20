@@ -18,25 +18,29 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             )
             page = await context.new_page()
             
-            # Go to link and wait for DOM load
+            # Navigate to the cleaned URL and wait for DOM load
             await page.goto(clean_url, wait_until="domcontentloaded", timeout=15000)
             html = await page.content()
             await browser.close()
 
         # Extract Meta Title / Description content
-        # Example: "15K likes, 230 comments - username on Month Day, Year..."
         meta_desc = re.search(r'<meta\s+property="og:description"\s+content="([^"]+)"', html)
         meta_title = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', html)
 
         desc_text = meta_desc.group(1) if meta_desc else ""
         title_text = meta_title.group(1) if meta_title else ""
 
-        # Parse metrics using regex patterns
+        # Parse metrics using regex patterns from meta description
         likes_match = re.search(r'([\d\.,KMB]+)\s+likes', desc_text, re.IGNORECASE)
         comments_match = re.search(r'([\d\.,KMB]+)\s+comments', desc_text, re.IGNORECASE)
         
-        # Author extraction from title "Author (@username) on Instagram"
-        author_match = re.search(r'\(@([^)]+)\)', title_text) or re.search(r'-\s*([^@]+)\s+on\s+Instagram', title_text)
+        # Robust author extraction across multiple Instagram page title/meta formats
+        author_match = (
+            re.search(r'\(@([^)]+)\)', title_text) or
+            re.search(r'([^\(]+)\s+on\s+Instagram', title_text) or
+            re.search(r'"username":\s*"([^"]+)"', html) or
+            re.search(r'<meta\s+property="og:title"\s+content="([^"-]+)', html)
+        )
 
         def parse_number(val: str):
             if not val:
@@ -50,14 +54,18 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
                 return int(float(val.replace('B', '')) * 1_000_000_000)
             return int(val)
 
-        author_name = f"@{author_match.group(1)}" if author_match else "Unknown"
+        if author_match:
+            raw_author = author_match.group(1).strip()
+            author_name = raw_author if raw_author.startswith("@") else f"@{raw_author}"
+        else:
+            author_name = "Unknown"
 
         return {
             "url": url,
             "author": author_name,
             "likes": parse_number(likes_match.group(1)) if likes_match else None,
             "comments": parse_number(comments_match.group(1)) if comments_match else None,
-            "shares": None,  # Instagram doesn't expose public share counts
+            "shares": None,  # Instagram does not expose public share counts
             "views": None
         }
 
