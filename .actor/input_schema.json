@@ -1,0 +1,17 @@
+{
+    "title": "Social Media Metrics Scraper Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "urls": {
+            "title": "Post & Reel URLs",
+            "type": "array",
+            "description": "Enter links from YouTube, TikTok, Instagram, Twitter/X, Facebook, or LinkedIn.",
+            "editor": "stringList",
+            "prefill": [
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            ]
+        }
+    },
+    "required": ["urls"]
+}
