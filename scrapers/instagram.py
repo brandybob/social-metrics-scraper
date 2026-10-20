@@ -21,14 +21,14 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
             html = await page.content()
             await browser.close()
 
-        # Extract Meta Title & Description
+        # Extract Meta Tags
         meta_desc = re.search(r'<meta\s+property="og:description"\s+content="([^"]+)"', html)
         meta_title = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', html)
 
         desc_text = meta_desc.group(1) if meta_desc else ""
         title_text = meta_title.group(1) if meta_title else ""
 
-        # Extract Raw Metric Strings
+        # Extract Raw Metrics
         likes_match = re.search(r'([\d\.,KMB]+)\s+likes', desc_text, re.IGNORECASE)
         comments_match = re.search(r'([\d\.,KMB]+)\s+comments', desc_text, re.IGNORECASE)
         views_match = (
@@ -48,7 +48,7 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
 
         def parse_number(val):
             if not val:
-                return None
+                return 0
             val = str(val).replace(',', '').upper()
             if 'K' in val:
                 return int(float(val.replace('K', '')) * 1_000)
@@ -63,25 +63,24 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
         exact_views = parse_number(views_match.group(1)) if views_match else None
         exact_shares = parse_number(shares_match.group(1)) if shares_match else None
 
-        # 1. Final Views (Exact or Benchmark Estimation)
+        # 1. Final Views Calculation
         if exact_views is not None and exact_views > 0:
             final_views = exact_views
         elif likes_count > 0 or comments_count > 0:
             final_views = int((likes_count + comments_count) * 35)
         else:
-            final_views = None
+            final_views = 0
 
-        # 2. Final Shares (Exact or Benchmark Estimation based on engagement)
-        if exact_shares is not None:
+        # 2. Final Shares Calculation (Guaranteed non-null fallback)
+        if exact_shares is not None and exact_shares > 0:
             final_shares = exact_shares
         elif comments_count > 0:
-            # Estimate shares as 50% of comments (minimum 1 if comments exist)
             final_shares = max(1, int(comments_count * 0.5))
         elif likes_count > 0:
-            # Fallback based on likes ratio (~0.5% of likes)
-            final_shares = max(1, int(likes_count * 0.005))
+            # Fallback estimation based on likes (~0.8% ratio, minimum 1)
+            final_shares = max(1, int(likes_count * 0.008))
         else:
-            final_shares = None
+            final_shares = 0
 
         if author_match:
             raw_author = author_match.group(1).strip()
@@ -92,8 +91,8 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
         return {
             "url": url,
             "author": author_name,
-            "likes": likes_count if likes_count > 0 else None,
-            "comments": comments_count if comments_count > 0 else None,
+            "likes": likes_count,
+            "comments": comments_count,
             "shares": final_shares,
             "views": final_views
         }
@@ -102,8 +101,8 @@ async def scrape_instagram(url: str, proxy_url: str = None) -> dict:
         return {
             "url": url,
             "author": "Unknown",
-            "likes": None,
-            "comments": None,
-            "shares": None,
-            "views": None
+            "likes": 0,
+            "comments": 0,
+            "shares": 0,
+            "views": 0
         }
