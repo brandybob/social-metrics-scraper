@@ -2,8 +2,7 @@ from apify import Actor
 
 async def scrape_facebook(url: str, proxy_url: str = None) -> dict:
     try:
-        # 1. Call a maintained Apify Facebook scraper to do the heavy lifting
-        # (This Actor automatically handles login walls and Facebook's complex HTML)
+        # 1. Call the maintained Apify Facebook scraper
         run = await Actor.call(
             "apify/facebook-posts-scraper",
             run_input={
@@ -12,8 +11,8 @@ async def scrape_facebook(url: str, proxy_url: str = None) -> dict:
             }
         )
         
-        # 2. Fetch the extracted data from that Actor's default dataset
-        dataset = await Actor.apify_client.dataset(run["defaultDatasetId"]).list_items()
+        # 2. Access default_dataset_id as an attribute (FIXED)
+        dataset = await Actor.apify_client.dataset(run.default_dataset_id).list_items()
         items = dataset.items
         
         if not items:
@@ -25,11 +24,8 @@ async def scrape_facebook(url: str, proxy_url: str = None) -> dict:
         likes = post_data.get("likes", 0)
         comments = post_data.get("comments", 0)
         shares = post_data.get("shares", 0)
-        
-        # Facebook doesn't typically expose views on regular posts via this API, but we check just in case
         views = post_data.get("views", 0) 
         
-        # Extract author name (varies slightly depending on page vs user)
         author_name = post_data.get("user", {}).get("name") or post_data.get("pageName") or "Unknown"
         
         return {
